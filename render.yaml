@@ -9,6 +9,9 @@ services:
     plan: free
     buildCommand: npm install
     startCommand: npm start
+    # Deploys are driven by the GitHub Action (after the smoke test passes), so
+    # disable Render's own auto-deploy to avoid deploying twice per push.
+    autoDeploy: false
     envVars:
       - key: NODE_VERSION
         value: "20"

@@ -102,6 +102,20 @@ Ida is a normal Node/Express app, so any Node host works. Two free paths:
    *(Free Render services sleep after ~15 min idle, so the first request after a
    nap takes a few seconds to wake.)*
 
+**Auto-deploy on push (CI-gated).** A GitHub Action
+(`.github/workflows/deploy.yml`) runs the smoke test on every push and, only if
+it passes, triggers a Render deploy. One-time setup:
+
+1. Create a free account at [render.com](https://render.com) (sign in with
+   GitHub) and deploy this repo as a Blueprint (uses `render.yaml`).
+2. In Render → your service → **Settings → Deploy Hook**, copy the hook URL.
+3. In GitHub → repo **Settings → Secrets and variables → Actions → New
+   repository secret**, add `RENDER_DEPLOY_HOOK_URL` = that URL.
+
+That's it — every green push now auto-deploys. Until the secret is added, the
+deploy step simply skips (CI still runs). `render.yaml` sets `autoDeploy: false`
+so Render doesn't also deploy on its own (no double deploys).
+
 **Fully static (free forever, no server):** if you don't need live Claude or
 cross-device sync, Ida also runs as a local-only app you can host on any static
 host — the curated Ida brain and room catalog run client-side. (Cross-device sync
