@@ -1,8 +1,5 @@
 // app.js — Ida studio controller.
-import {
-  loadState, saveState, roomState,
-  putImage, getImages, deleteImage, fileToDataUrl,
-} from './store.js';
+import { Store, roomState, fileToDataUrl, requestPersistence } from './store.js';
 import { renderMarkdown } from './md.js';
 
 const STYLES = ['Modern', 'Minimalist', 'Scandinavian', 'Industrial', 'Mid-century', 'Traditional', 'Japandi', 'Luxury / Glam', 'Rustic', 'Contemporary'];
@@ -11,36 +8,50 @@ const BUDGETS = ['Budget-conscious', 'Mid-range', 'Premium', 'No limit'];
 const app = {
   rooms: [],
   software: [],
-  state: loadState(),
+  state: null,
   view: 'dashboard', // 'dashboard' | roomId
   tab: 'overview',
   idaMode: 'curated',
+  dbAvailable: false,
   busy: false,
 };
+
+// mode-aware image helpers
+const putImage = (rec) => Store.putImage(rec);
+const getImages = (group) => Store.getImages(group);
+const deleteImage = (id) => Store.deleteImage(id);
 
 // ── boot ────────────────────────────────────────────────────────────────────
 init();
 async function init() {
+  let health = { ida: 'curated', db: 'off' };
+  try {
+    health = await fetch('/api/health').then((r) => r.json());
+  } catch {}
+  app.idaMode = health.ida || 'curated';
+  app.dbAvailable = health.db === 'connected';
+  Store.dbAvailable = app.dbAvailable;
+  app.state = await Store.init();
+
   bindChrome();
   try {
-    const [catalog, health] = await Promise.all([
-      fetch('/api/rooms').then((r) => r.json()),
-      fetch('/api/health').then((r) => r.json()).catch(() => ({ ida: 'curated' })),
-    ]);
+    const catalog = await fetch('/api/rooms').then((r) => r.json());
     app.rooms = catalog.rooms || [];
     app.software = catalog.software || [];
-    app.idaMode = health.ida || 'curated';
   } catch (e) {
     console.error('Failed to load catalog', e);
   }
   setModeBadge();
+  renderSyncStatus();
   renderNav();
   render();
   renderIda();
+
+  if (!Store.isCloud()) requestPersistence(); // make single-device storage durable
 }
 
 function room(id) { return app.rooms.find((r) => r.id === id); }
-function persist() { saveState(app.state); }
+function persist() { Store.save(app.state); }
 
 // ── chrome / sidebar ────────────────────────────────────────────────────────
 function bindChrome() {
@@ -49,13 +60,20 @@ function bindChrome() {
   pn.addEventListener('input', () => { app.state.projectName = pn.value; persist(); });
 
   document.getElementById('resetBtn').addEventListener('click', async () => {
-    if (!confirm('Reset all project data, photos and chats? This cannot be undone.')) return;
-    localStorage.clear();
-    const imgs = await getImages();
-    await Promise.all(imgs.map((i) => deleteImage(i.id)));
-    app.state = loadState();
+    const where = Store.isCloud() ? 'this workspace (all your synced devices)' : 'this device';
+    if (!confirm(`Reset all project data, photos and chats for ${where}? This cannot be undone.`)) return;
+    try {
+      const imgs = await getImages();
+      await Promise.all(imgs.map((i) => deleteImage(i.id)));
+    } catch {}
+    app.state = { projectName: 'My Home Improvement Project', style: '', budget: '', rooms: {} };
+    Store.save(app.state); // also clears cloud state when synced
+    localStorage.removeItem('ida.project.v1');
     location.reload();
   });
+
+  const syncBtn = document.getElementById('syncBtn');
+  if (syncBtn) syncBtn.addEventListener('click', openSyncModal);
 
   document.getElementById('idaCollapse').addEventListener('click', () => toggleIda(false));
   document.getElementById('idaOpen').addEventListener('click', () => toggleIda(true));
@@ -528,6 +546,134 @@ async function sendToIda(text) {
     app.busy = false;
     scrollIda();
   }
+}
+
+// ── cross-device sync UI ────────────────────────────────────────────────────
+function renderSyncStatus() {
+  const dot = document.getElementById('syncDot');
+  const label = document.getElementById('syncLabel');
+  if (!dot || !label) return;
+  if (Store.isCloud()) { dot.className = 'sync-dot on'; label.textContent = 'Synced'; }
+  else if (app.dbAvailable) { dot.className = 'sync-dot off'; label.textContent = 'Enable sync'; }
+  else { dot.className = 'sync-dot local'; label.textContent = 'Local only'; }
+}
+
+function openModal(html) {
+  const root = document.getElementById('modalRoot');
+  root.innerHTML = `<div class="modal-backdrop"></div><div class="modal">${html}</div>`;
+  root.classList.remove('hidden');
+  root.querySelector('.modal-backdrop').addEventListener('click', closeModal);
+  const x = root.querySelector('[data-close]');
+  if (x) x.addEventListener('click', closeModal);
+  return root.querySelector('.modal');
+}
+function closeModal() {
+  const root = document.getElementById('modalRoot');
+  root.classList.add('hidden');
+  root.innerHTML = '';
+}
+
+function openSyncModal() {
+  // No backend DB available (e.g. a static deploy) → explain how to enable it.
+  if (!app.dbAvailable) {
+    openModal(`
+      <button class="modal-x" data-close>×</button>
+      <h2>Cross-device sync</h2>
+      <p class="muted">This copy of Ida is running without a database, so your photos and
+      layouts are saved only on <b>this device</b> (and kept durable in your browser).</p>
+      <p class="muted">To sync across devices, deploy Ida with a free <b>Neon Postgres</b>
+      database and set the <code>DATABASE_URL</code> environment variable. See the README →
+      "Cross-device sync".</p>
+      <div class="modal-actions"><button class="btn" data-close>Got it</button></div>
+    `);
+    return;
+  }
+
+  if (Store.isCloud()) {
+    const key = Store.workspace();
+    const m = openModal(`
+      <button class="modal-x" data-close>×</button>
+      <h2>✅ Sync is on</h2>
+      <p class="muted">Your project, photos and layouts are saved to the cloud and shared by
+      everyone who uses this workspace key. Open Ida on another device and paste this key to
+      see the same project.</p>
+      <div class="field"><label>Your workspace key</label>
+        <div class="key-row"><input id="wsKey" readonly value="${escapeHtml(key)}"/>
+        <button class="btn small" id="copyKey">Copy</button></div>
+      </div>
+      <p class="muted small">⚠️ Anyone with this key can view and edit your project — keep it private.</p>
+      <div class="modal-actions">
+        <button class="btn ghost" id="disconnectBtn">Disconnect this device</button>
+        <button class="btn" data-close>Done</button>
+      </div>
+    `);
+    m.querySelector('#copyKey').addEventListener('click', async () => {
+      try { await navigator.clipboard.writeText(key); m.querySelector('#copyKey').textContent = 'Copied!'; } catch {}
+    });
+    m.querySelector('#disconnectBtn').addEventListener('click', () => {
+      if (!confirm('Stop syncing on this device? Your cloud data stays safe; this device switches to local-only.')) return;
+      app.state = Store.disconnect();
+      closeModal();
+      refreshAll();
+    });
+    return;
+  }
+
+  // DB available, currently local → offer to create or join a workspace.
+  const m = openModal(`
+    <button class="modal-x" data-close>×</button>
+    <h2>Turn on cross-device sync</h2>
+    <p class="muted">Save your project, photos and floor plans to the cloud so they follow you
+    to any device — phone, laptop, tablet.</p>
+    <div class="modal-actions" style="margin:14px 0 8px">
+      <button class="btn" id="createWs">✨ Create my workspace</button>
+    </div>
+    <p class="muted small" id="createNote">This uploads your current project and photos, then gives you a key to use elsewhere.</p>
+    <div class="divider"><span>or join an existing one</span></div>
+    <div class="field"><label>Paste a workspace key from another device</label>
+      <div class="key-row"><input id="joinKey" placeholder="workspace key…"/>
+      <button class="btn small ghost" id="joinBtn">Connect</button></div>
+    </div>
+    <p class="muted small">Joining replaces what's on this device with the workspace's data.</p>
+  `);
+  m.querySelector('#createWs').addEventListener('click', async () => {
+    const note = m.querySelector('#createNote');
+    const btn = m.querySelector('#createWs');
+    btn.disabled = true; btn.textContent = 'Creating…';
+    try {
+      await Store.enableSync((n, total) => { note.textContent = `Uploading photos… ${n}/${total}`; });
+      app.state = Store.state();
+      closeModal();
+      refreshAll();
+      openSyncModal(); // show the key + instructions
+    } catch (e) {
+      note.textContent = 'Could not enable sync. Please try again.';
+      btn.disabled = false; btn.textContent = '✨ Create my workspace';
+    }
+  });
+  m.querySelector('#joinBtn').addEventListener('click', async () => {
+    const key = m.querySelector('#joinKey').value.trim();
+    if (!key) return;
+    const btn = m.querySelector('#joinBtn');
+    btn.disabled = true; btn.textContent = 'Connecting…';
+    try {
+      app.state = await Store.connect(key);
+      closeModal();
+      refreshAll();
+    } catch {
+      btn.disabled = false; btn.textContent = 'Connect';
+      alert('Could not connect to that workspace.');
+    }
+  });
+}
+
+function refreshAll() {
+  const pn = document.getElementById('projectName');
+  if (pn) pn.value = app.state.projectName;
+  renderSyncStatus();
+  renderNav();
+  render();
+  renderIda();
 }
 
 // ── util ────────────────────────────────────────────────────────────────────

@@ -1,0 +1,18 @@
+# One-click deploy to Render (free tier). In the Render dashboard:
+#   New + → Blueprint → point at this repo → Apply.
+# Then add a free Neon Postgres DATABASE_URL (and optional ANTHROPIC_API_KEY)
+# under the service's Environment settings to turn on cross-device sync / live Ida.
+services:
+  - type: web
+    name: ida-home-improvement
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: NODE_VERSION
+        value: "20"
+      # Set these in the dashboard (kept out of source control):
+      # - key: DATABASE_URL        # free Neon Postgres → cross-device sync
+      # - key: ANTHROPIC_API_KEY   # optional → live Claude-powered Ida
+      # - key: IDA_MODEL           # optional, defaults to claude-sonnet-4-6

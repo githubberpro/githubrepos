@@ -65,32 +65,80 @@ The badge in the sidebar shows the current mode (**Ida live** vs **Ida ready**).
 If a live call fails for any reason, Ida automatically falls back to the curated
 brain so the app never goes dark.
 
+## Cross-device sync
+
+By default your photos and layouts live in **your browser** (durable, but tied to
+one device). To access the same project from your phone, laptop and tablet, turn
+on **cross-device sync**:
+
+1. Deploy Ida with a free **Neon Postgres** database (see *Deploying* below) and
+   set the `DATABASE_URL` environment variable.
+2. In the app, click **Sync → Create my workspace**. Ida uploads your current
+   project and photos and gives you a **workspace key**.
+3. On any other device, open Ida and click **Sync → paste the key → Connect**.
+   The same project (state + images) appears instantly, and every change syncs.
+
+How it works: project state lives in a `project_state` table and images in an
+`images` table, both keyed by an unguessable **workspace token**. The token acts
+like a private share link — anyone with it can view/edit the project, so keep it
+private. With no `DATABASE_URL`, sync is simply disabled and the app stays fully
+functional in local-only mode (the **Sync** chip shows *Local only*).
+
+> Storage note: images are compressed client-side (~1600px JPEG) before upload, so
+> Neon's free 0.5 GB tier comfortably holds a personal multi-room project.
+
+## Deploying (free)
+
+Ida is a normal Node/Express app, so any Node host works. Two free paths:
+
+**Render + Neon (recommended — keeps live Ida + cross-device sync):**
+1. Create a free Postgres at [neon.tech](https://neon.tech) and copy its
+   connection string.
+2. Push this repo and deploy on [Render](https://render.com) — the included
+   `render.yaml` makes it a one-click Blueprint (free web service).
+3. In Render → your service → **Environment**, set `DATABASE_URL` (from Neon) and,
+   optionally, `ANTHROPIC_API_KEY` for live Claude. Done.
+
+   *(Free Render services sleep after ~15 min idle, so the first request after a
+   nap takes a few seconds to wake.)*
+
+**Fully static (free forever, no server):** if you don't need live Claude or
+cross-device sync, Ida also runs as a local-only app you can host on any static
+host — the curated Ida brain and room catalog run client-side. (Cross-device sync
+requires the server + database described above.)
+
 ## How it's built
 
 - **Backend** — a small [Express](https://expressjs.com/) server (`server.js`)
-  that serves the app, exposes the room catalog (`/api/rooms`), and answers chat
-  requests (`/api/ida`). No database required.
+  that serves the app, exposes the room catalog (`/api/rooms`), answers chat
+  requests (`/api/ida`), and — when a database is configured — provides the sync
+  API (`/api/workspace`, `/api/state`, `/api/images`, `/api/image/:id`).
 - **Knowledge base** — `data/knowledge.js` is the single source of truth: an
   expert brief per room (principles, recommendations, palettes, shopping list,
   measurements, pro tips) shared by the server brain and the UI.
-- **Frontend** — a dependency‑free ES‑module SPA in `public/`. Project state
-  lives in `localStorage`; uploaded images are compressed client‑side and stored
-  in **IndexedDB**, so nothing leaves your machine.
+- **Persistence** — `data/db.js` is an optional Postgres layer; the frontend
+  `store.js` has two interchangeable backends (local IndexedDB/localStorage, or
+  the cloud sync API) behind one API, chosen automatically.
+- **Frontend** — a dependency‑free ES‑module SPA in `public/`. In local mode,
+  images are compressed client‑side and stored in **IndexedDB**; in sync mode they
+  go to the database keyed by your workspace.
 
 ```
-server.js            Express server + Ida (Claude / curated)
+server.js            Express server + Ida (Claude / curated) + sync API
 data/knowledge.js    Expert design knowledge base (all rooms)
+data/db.js           Optional Postgres persistence (cross-device sync)
 public/
   index.html         App shell
   css/styles.css     Studio UI
-  js/app.js          Controller (dashboard, rooms, uploads, chat)
-  js/store.js        localStorage + IndexedDB persistence
+  js/app.js          Controller (dashboard, rooms, uploads, chat, sync)
+  js/store.js        Dual-backend persistence (local ↔ cloud)
   js/md.js           Tiny Markdown renderer for Ida's replies
 ```
 
 ## Privacy
 
-Your floor plan and room photos stay in your browser (IndexedDB) and are never
-uploaded. When Ida is in **live** mode, only your typed message plus light
-context (room, style, budget, photo count) is sent to the Claude API — never the
-images themselves.
+In **local mode**, your floor plan and room photos never leave your browser. In
+**sync mode**, they're stored in *your own* database (the Neon project you
+provision) and served only to clients holding your workspace key. When Ida is in
+**live** chat mode, only your typed message plus light context (room, style,
+budget, photo count) is sent to the Claude API — never the images themselves.

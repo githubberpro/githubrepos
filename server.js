@@ -8,12 +8,13 @@ import express from 'express';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import ROOMS, { SOFTWARE_INSPIRATION } from './data/knowledge.js';
+import * as db from './data/db.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-app.use(express.json({ limit: '2mb' }));
+app.use(express.json({ limit: '16mb' })); // room for base64 image uploads
 app.use(express.static(path.join(__dirname, 'public')));
 
 const roomsById = Object.fromEntries(ROOMS.map((r) => [r.id, r]));
@@ -24,8 +25,66 @@ app.get('/api/rooms', (_req, res) => {
 });
 
 app.get('/api/health', (_req, res) => {
-  res.json({ ok: true, ida: process.env.ANTHROPIC_API_KEY ? 'live' : 'curated' });
+  res.json({
+    ok: true,
+    ida: process.env.ANTHROPIC_API_KEY ? 'live' : 'curated',
+    db: db.dbEnabled() ? 'connected' : 'off',
+  });
 });
+
+// ── Sync endpoints (cross-device persistence) ───────────────────────────────
+// All require the DB; gated so the app degrades cleanly to local-only mode.
+function requireDb(_req, res, next) {
+  if (!db.dbEnabled()) return res.status(503).json({ error: 'sync_disabled' });
+  next();
+}
+const ws = (req) => String(req.query.ws || '').trim();
+const asyncHandler = (fn) => (req, res) => fn(req, res).catch((e) => {
+  console.error('[sync]', e.message);
+  res.status(500).json({ error: 'server_error' });
+});
+
+app.post('/api/workspace', requireDb, asyncHandler(async (_req, res) => {
+  res.json({ workspace: await db.createWorkspace() });
+}));
+
+app.get('/api/state', requireDb, asyncHandler(async (req, res) => {
+  if (!ws(req)) return res.status(400).json({ error: 'missing_ws' });
+  res.json({ state: await db.getState(ws(req)) });
+}));
+
+app.put('/api/state', requireDb, asyncHandler(async (req, res) => {
+  if (!ws(req)) return res.status(400).json({ error: 'missing_ws' });
+  await db.putState(ws(req), req.body.state || {});
+  res.json({ ok: true });
+}));
+
+app.get('/api/images', requireDb, asyncHandler(async (req, res) => {
+  if (!ws(req)) return res.status(400).json({ error: 'missing_ws' });
+  res.json({ images: await db.listImages(ws(req), req.query.group) });
+}));
+
+app.post('/api/images', requireDb, asyncHandler(async (req, res) => {
+  if (!ws(req)) return res.status(400).json({ error: 'missing_ws' });
+  await db.putImage(ws(req), req.body || {});
+  res.json({ ok: true, id: req.body && req.body.id });
+}));
+
+app.delete('/api/image/:id', requireDb, asyncHandler(async (req, res) => {
+  if (!ws(req)) return res.status(400).json({ error: 'missing_ws' });
+  await db.deleteImage(ws(req), req.params.id);
+  res.json({ ok: true });
+}));
+
+// Streams the raw image bytes so <img src> works without inlining huge blobs.
+app.get('/api/image/:id', requireDb, asyncHandler(async (req, res) => {
+  const data = await db.getImage(ws(req), req.params.id);
+  if (!data) return res.sendStatus(404);
+  const m = /^data:(.+?);base64,(.*)$/s.exec(data);
+  if (!m) return res.type('text/plain').send(data);
+  res.set('Cache-Control', 'private, max-age=86400');
+  res.type(m[1]).send(Buffer.from(m[2], 'base64'));
+}));
 
 // ── Ida chat endpoint ──────────────────────────────────────────────────────
 app.post('/api/ida', async (req, res) => {
@@ -190,6 +249,12 @@ function curatedIda({ message, room, context }) {
   const ctxLine = ctxBits.length ? `\n\n_${ctxBits.join(' ')}._` : '';
 
   return head + '\n' + blocks.join('\n\n') + ctxLine;
+}
+
+try {
+  await db.initDb();
+} catch (e) {
+  console.error('  ⚠️  Sync DB failed to initialize, continuing in local-only mode:', e.message);
 }
 
 app.listen(PORT, () => {
