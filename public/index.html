@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Ida · Home Improvement & Interior Design Studio</title>
+    <meta
+      name="description"
+      content="Upload floor plans and room photos and get expert, room-by-room interior design recommendations from Ida."
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/css/styles.css" />
+  </head>
+  <body>
+    <div id="app" class="app">
+      <!-- Sidebar -->
+      <aside class="sidebar">
+        <div class="brand">
+          <div class="brand-mark">Ida</div>
+          <div class="brand-sub">design studio</div>
+        </div>
+
+        <input id="projectName" class="project-name" aria-label="Project name" />
+
+        <nav id="nav" class="nav"><!-- nav items injected --></nav>
+
+        <div class="sidebar-foot">
+          <span id="idaModeBadge" class="badge">checking…</span>
+          <button id="resetBtn" class="link-btn" title="Reset project data">Reset</button>
+        </div>
+      </aside>
+
+      <!-- Main content -->
+      <main id="main" class="main"><!-- view injected --></main>
+
+      <!-- Ida chat dock -->
+      <section id="idaPanel" class="ida-panel" aria-label="Chat with Ida">
+        <header class="ida-head">
+          <div class="ida-id">
+            <span class="ida-avatar">I</span>
+            <div>
+              <div class="ida-name">Ida</div>
+              <div id="idaContext" class="ida-context">your design advisor</div>
+            </div>
+          </div>
+          <button id="idaCollapse" class="icon-btn" title="Hide Ida">×</button>
+        </header>
+        <div id="idaMessages" class="ida-messages"><!-- messages --></div>
+        <div id="idaStarters" class="ida-starters"><!-- quick prompts --></div>
+        <form id="idaForm" class="ida-form">
+          <textarea
+            id="idaInput"
+            class="ida-input"
+            rows="1"
+            placeholder="Ask Ida anything about this room…"
+          ></textarea>
+          <button type="submit" class="send-btn" title="Send">➤</button>
+        </form>
+      </section>
+
+      <button id="idaOpen" class="ida-open hidden" title="Chat with Ida">💬 Ask Ida</button>
+    </div>
+
+    <script type="module" src="/js/app.js"></script>
+  </body>
+</html>

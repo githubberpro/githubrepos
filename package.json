@@ -1,0 +1,25 @@
+{
+  "name": "ida-home-improvement",
+  "version": "1.0.0",
+  "description": "Ida — an AI-assisted interior design & home improvement studio. Upload floor plans and room photos, then get expert, room-by-room recommendations from Ida.",
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "express": "^4.19.2"
+  },
+  "keywords": [
+    "interior-design",
+    "home-improvement",
+    "floor-plan",
+    "ai-assistant",
+    "ida"
+  ],
+  "license": "MIT"
+}
