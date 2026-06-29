@@ -18,8 +18,11 @@
   </head>
   <body>
     <div id="app" class="app">
+      <button id="navToggle" class="nav-toggle" aria-label="Menu">☰</button>
+      <div id="scrim" class="scrim"></div>
+
       <!-- Sidebar -->
-      <aside class="sidebar">
+      <aside class="sidebar" id="sidebar">
         <div class="brand">
           <div class="brand-mark">Ida</div>
           <div class="brand-sub">design studio</div>
@@ -52,7 +55,10 @@
               <div id="idaContext" class="ida-context">your design advisor</div>
             </div>
           </div>
-          <button id="idaCollapse" class="icon-btn" title="Hide Ida">×</button>
+          <div class="ida-head-actions">
+            <button id="idaExpand" class="icon-btn" title="Expand">⤢</button>
+            <button id="idaCollapse" class="icon-btn" title="Minimize">—</button>
+          </div>
         </header>
         <div id="idaMessages" class="ida-messages"><!-- messages --></div>
         <div id="idaStarters" class="ida-starters"><!-- quick prompts --></div>
@@ -67,7 +73,7 @@
         </form>
       </section>
 
-      <button id="idaOpen" class="ida-open hidden" title="Chat with Ida">💬 Ask Ida</button>
+      <button id="idaOpen" class="ida-fab" title="Chat with Ida">💬 Ask Ida</button>
 
       <div id="modalRoot" class="modal-root hidden"><!-- modals injected --></div>
     </div>

@@ -75,8 +75,17 @@ function bindChrome() {
   const syncBtn = document.getElementById('syncBtn');
   if (syncBtn) syncBtn.addEventListener('click', openSyncModal);
 
-  document.getElementById('idaCollapse').addEventListener('click', () => toggleIda(false));
-  document.getElementById('idaOpen').addEventListener('click', () => toggleIda(true));
+  // Mobile sidebar drawer
+  const navToggle = document.getElementById('navToggle');
+  const scrim = document.getElementById('scrim');
+  if (navToggle) navToggle.addEventListener('click', () => setSidebar(true));
+  if (scrim) scrim.addEventListener('click', () => setSidebar(false));
+
+  document.getElementById('idaCollapse').addEventListener('click', () => setIda('min'));
+  document.getElementById('idaOpen').addEventListener('click', () => setIda('open'));
+  document.getElementById('idaExpand').addEventListener('click', () => setIda(app.idaState === 'max' ? 'open' : 'max'));
+  // Start minimized on small screens so it never covers the page.
+  setIda(window.innerWidth < 900 ? 'min' : 'open');
 
   // Ida chat form
   const form = document.getElementById('idaForm');
@@ -91,9 +100,28 @@ function bindChrome() {
   });
 }
 
-function toggleIda(open) {
-  document.getElementById('app').classList.toggle('ida-collapsed', !open);
-  document.getElementById('idaOpen').classList.toggle('hidden', open);
+// Ida popup states: 'min' (launcher bubble), 'open' (docked popup), 'max' (expanded)
+function setIda(state) {
+  app.idaState = state;
+  const el = document.getElementById('app');
+  el.classList.remove('ida-min', 'ida-open', 'ida-max');
+  el.classList.add('ida-' + state);
+  const exp = document.getElementById('idaExpand');
+  if (exp) {
+    exp.textContent = state === 'max' ? '⤡' : '⤢';
+    exp.title = state === 'max' ? 'Restore' : 'Expand';
+  }
+  if (state !== 'min') {
+    const input = document.getElementById('idaInput');
+    if (input && window.innerWidth >= 900) input.focus();
+    scrollIda();
+  }
+}
+function openIda() { setIda(app.idaState === 'max' ? 'max' : 'open'); }
+
+function setSidebar(open) {
+  document.getElementById('sidebar').classList.toggle('open', open);
+  document.getElementById('scrim').classList.toggle('show', open);
 }
 
 function setModeBadge() {
@@ -127,6 +155,7 @@ function renderNav() {
 function go(view) {
   app.view = view;
   app.tab = 'overview';
+  setSidebar(false); // close the mobile drawer after picking a room
   renderNav();
   render();
   renderIda();
@@ -302,7 +331,7 @@ function roomOverview(body, r) {
   `;
   const ta = body.querySelector('#roomNotes');
   ta.addEventListener('input', () => { roomState(app.state, r.id).notes = ta.value; persist(); });
-  body.querySelector('#askIdaOverview').addEventListener('click', () => { toggleIda(true); document.getElementById('idaInput').focus(); });
+  body.querySelector('#askIdaOverview').addEventListener('click', () => { openIda(); });
 }
 
 async function roomPhotos(body, r) {
@@ -351,7 +380,7 @@ function roomRecs(body, r) {
     }).join('')}
   `;
   body.querySelector('#genIda').addEventListener('click', () => {
-    toggleIda(true);
+    openIda();
     sendToIda(`Give me a personalized design plan for my ${r.name.split(' — ')[0]}.`);
   });
 }
@@ -504,7 +533,7 @@ async function sendToIda(text) {
   const input = document.getElementById('idaInput');
   input.value = '';
   input.style.height = 'auto';
-  toggleIda(true);
+  openIda();
 
   const hist = currentHistory();
   hist.push({ role: 'user', content: text });

@@ -32,7 +32,7 @@ a { color: var(--accent); }
 
 .app {
   display: grid;
-  grid-template-columns: 264px 1fr 380px;
+  grid-template-columns: 264px 1fr;
   height: 100vh;
   overflow: hidden;
 }
@@ -284,15 +284,34 @@ a { color: var(--accent); }
 .tip { background: var(--accent-soft); border: 1px solid rgba(124,92,255,0.25); border-radius: 10px; padding: 12px 14px; font-size: 13px; color: var(--text); line-height: 1.5; }
 .inspired { color: var(--text-faint); font-size: 12px; margin-top: 16px; }
 
-/* ── Ida panel ── */
+/* ── Ida floating chat popup ── */
 .ida-panel {
+  position: fixed;
+  right: 22px;
+  bottom: 22px;
+  z-index: 50;
+  width: 390px;
+  height: min(600px, 78vh);
   background: var(--bg-2);
-  border-left: 1px solid var(--line);
+  border: 1px solid var(--line-2);
+  border-radius: 18px;
+  box-shadow: var(--shadow);
   display: flex;
   flex-direction: column;
-  height: 100vh;
+  overflow: hidden;
+  transition: width 0.18s ease, height 0.18s ease, opacity 0.15s ease, transform 0.15s ease;
 }
-.ida-head { display: flex; align-items: center; justify-content: space-between; padding: 16px 18px; border-bottom: 1px solid var(--line); }
+/* expanded / maximized */
+.app.ida-max .ida-panel {
+  width: min(820px, 94vw);
+  height: 92vh;
+  right: 3vw;
+  bottom: 4vh;
+}
+/* minimized → hide popup, show launcher bubble */
+.app.ida-min .ida-panel { opacity: 0; transform: translateY(12px) scale(0.98); pointer-events: none; }
+.ida-head { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px; border-bottom: 1px solid var(--line); }
+.ida-head-actions { display: flex; align-items: center; gap: 2px; }
 .ida-id { display: flex; align-items: center; gap: 11px; }
 .ida-avatar {
   width: 38px; height: 38px; border-radius: 12px;
@@ -331,26 +350,53 @@ a { color: var(--accent); }
 .send-btn { background: var(--accent); color: #fff; border: none; width: 42px; height: 42px; border-radius: 12px; font-size: 16px; flex-shrink: 0; }
 .send-btn:hover { filter: brightness(1.1); }
 
-.ida-open { position: fixed; right: 22px; bottom: 22px; z-index: 20; background: var(--accent); color: #fff; border: none; border-radius: 999px; padding: 13px 20px; font-weight: 600; box-shadow: var(--shadow); }
+/* Launcher bubble — only visible when minimized */
+.ida-fab {
+  position: fixed; right: 22px; bottom: 22px; z-index: 50;
+  display: none; align-items: center; gap: 8px;
+  background: linear-gradient(135deg, var(--accent), #2bb6a3); color: #fff;
+  border: none; border-radius: 999px; padding: 13px 20px; font-weight: 600;
+  box-shadow: var(--shadow); font-size: 14px;
+}
+.ida-fab:hover { filter: brightness(1.07); }
+.app.ida-min .ida-fab { display: inline-flex; }
 
 .hidden { display: none !important; }
 
-/* Collapsed Ida */
-.app.ida-collapsed { grid-template-columns: 264px 1fr 0; }
-.app.ida-collapsed .ida-panel { display: none; }
+/* Mobile nav hamburger + scrim (hidden on desktop) */
+.nav-toggle {
+  display: none; position: fixed; top: 12px; left: 12px; z-index: 75;
+  width: 42px; height: 42px; border-radius: 10px;
+  background: var(--bg-3); border: 1px solid var(--line-2); color: var(--text);
+  font-size: 18px; align-items: center; justify-content: center; box-shadow: var(--shadow);
+}
+.scrim { display: none; position: fixed; inset: 0; background: rgba(0, 0, 0, 0.5); z-index: 65; }
+.scrim.show { display: block; }
 
 /* Responsive */
 @media (max-width: 1100px) {
   .app { grid-template-columns: 220px 1fr; }
-  .ida-panel { position: fixed; top: 0; right: 0; width: min(400px, 90vw); z-index: 30; box-shadow: var(--shadow); }
-  .app.ida-collapsed { grid-template-columns: 220px 1fr; }
   .grid.two, .measure-grid { grid-template-columns: 1fr; }
 }
-@media (max-width: 720px) {
+@media (max-width: 760px) {
   .app { grid-template-columns: 1fr; }
-  .sidebar { position: fixed; z-index: 40; width: 240px; height: 100vh; transform: translateX(-100%); transition: transform 0.2s; }
+  .view { padding: 64px 18px 90px; }
+  /* Sidebar slides in over the content; hamburger opens it */
+  .sidebar {
+    position: fixed; z-index: 70; width: 260px; height: 100vh;
+    transform: translateX(-100%); transition: transform 0.2s ease;
+  }
   .sidebar.open { transform: translateX(0); }
-  .view { padding: 22px 18px 80px; }
+  .nav-toggle { display: flex; }
+  /* The chat popup docks to the bottom, leaving the page usable above it */
+  .ida-panel {
+    right: 8px; left: 8px; bottom: 8px; width: auto;
+    height: min(72vh, 580px); border-radius: 16px;
+  }
+  .app.ida-max .ida-panel {
+    right: 0; left: 0; bottom: 0; width: auto; height: 100vh; border-radius: 0;
+  }
+  .ida-fab { right: 14px; bottom: 14px; }
 }
 
 /* ── Sync chip + modal ── */
